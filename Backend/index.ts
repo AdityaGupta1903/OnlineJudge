@@ -1,17 +1,24 @@
 
-import express from 'express';
+import express, { json } from 'express';
 import { createClient } from 'redis';
-import bodyParser from 'body-parser';
-import { runInNewContext } from 'vm';
 import vm from 'vm'
+import cors from 'cors';
+import mongoose from 'mongoose';
+import ProblemModel from './db/model'
 const app = express();
-app.use(bodyParser.json())
-
+app.use(express.json())
+app.use(cors());
 
 const clinet = createClient();
 
 clinet.connect().then().catch((err)=>{
     console.error("connection Failed with err", err)
+})
+
+mongoose.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/").then(()=>{
+    console.log("DB Connected");
+}).catch((err)=>{
+    console.log("Error in Connecting DB")
 })
     
 app.get('/Run',async(req,res)=>{
@@ -32,15 +39,19 @@ app.get('/Run',async(req,res)=>{
     }
 })
 
-app.get('/CreateProblem',async(req,res)=>{
-    const args = req.body.args
-    const code = req.body.code;
-    const sign = req.body.sign
-    const Id = req.body.Id
-    const IsAdmin = true;
+app.post('/CreateProblem',async(req,res)=>{
+    
     
     try{
-         await clinet.lPush("Submission",JSON.stringify({args,code,sign,IsAdmin,Id}));
+  
+    
+    const args = req.body.args
+    const code = req.body.code;
+    const sign = req.body.Signature
+    const Id = req.body.id
+    const IsAdmin = true;
+    const Description = req.body.Description
+         await clinet.lPush("Submission",JSON.stringify({args,code,sign,IsAdmin,Id,Description}));
          res.send("Problem Recieved and Stored");
     }
     catch(err){
@@ -71,6 +82,35 @@ app.post('/execute', (req, res) => {
         });
     }
 });
+
+app.get('/GetAllProblems',async (req,res)=>{
+    try{
+        const AllProblems = await ProblemModel.find({});
+        res.send(JSON.stringify(AllProblems));
+    }
+    catch(err){
+        res.send("Error in Fetching the Data")
+    }
+   
+})
+app.get('/GetProblem/:id',async(req,res)=>{
+    try{
+      const id = req.params.id
+      const Problem = await ProblemModel.findOne({ID:id});
+      if(Problem!==null){
+        const SampleInput = JSON.parse(Problem.TestCase)[0];
+        const SampleOutput = JSON.parse(Problem.TestCaseResults)[0];
+        res.send({Description:Problem.Description,Sign:Problem.sign,args:Problem.args,SampleInput:SampleInput,SampleOutput:SampleOutput}); 
+      }
+      else{
+        res.send({Desription:"",Sign:"",args:"",SampleInput:"",SampleOutput:""});
+      }
+      
+    }
+    catch(err){
+        res.send("Error Loading The Data")
+    }
+})
 
 
 

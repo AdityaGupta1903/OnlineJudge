@@ -2,7 +2,7 @@
  export function Tests(arr:any){
    /// generate 10 tcs
    let cases = [];
-   let t = 10;
+   let t = 3;
    
    while(t-->0){
      let list = [];
