@@ -4,7 +4,8 @@ interface IQuestionInEditor{
     Sign : string;
     args : string;
     SampleInput : string,
-    SampleOutput : string
+    SampleOutput : string,
+    ID : number
 }
 
 export default IQuestionInEditor

@@ -18,87 +18,7 @@ mongoose
   .catch((err) => {
     console.log(err);
   });
-const ProcessSubmission = async (SubmittedCode: any) => {
-  const Params = JSON.parse(SubmittedCode);
-  if (Params.IsAdmin === true) {
-    /// Process for Admin for Submitting the Question
-    const { args, code, sign, IsAdmin, Id } = JSON.parse(SubmittedCode);
-    const ArgumentArray = args.split(",");
-    const TestCases = Tests(ArgumentArray);
-    TestCaseMap.set(Id, TestCases);
-    const ArgsLen = ArgumentArray.length;
-    let ArgParam = "";
-    for (let i = 0; i < ArgsLen; i++) {
-      i === ArgsLen - 1
-        ? (ArgParam += `args${i + 1}`)
-        : (ArgParam += `args${i + 1},`);
-    }
-    const paramsstr = `(${ArgParam})`;
-    try {
-      const script = new vm.Script(`${code} ${sign}${paramsstr}`);
-      const Result = [];
-      for (let i = 0; i < TestCases.length; i++) {
-        let context: any = {};
-        for (let j = 0; j < ArgsLen; j++) {
-          context[`args${j + 1}`] = TestCases[i][j];
-        }
-        const result = await ExecuteWithContexAndTimeout(
-          `${code} ${sign}${paramsstr}`,
-          context,
-          2000
-        );
-        console.log(result);
 
-        Result.push(result);
-      }
-      ResultMap.set(Id, Result);
-    } catch (err) {
-      console.log(err);
-    }
-  } else {
-    /// Process for User to Process the code
-    const { Id, code, IsAdmin, sign, args } = JSON.parse(SubmittedCode);
-    const TestCases = TestCaseMap.get(Id);
-    const ArgsLen = args.length;
-    let ArgParam = "";
-    for (let i = 0; i < ArgsLen; i++) {
-      i === ArgsLen - 1
-        ? (ArgParam += `args${i + 1}`)
-        : (ArgParam += `args${i + 1},`);
-    }
-    const paramsstr = `(${ArgParam})`;
-    try {
-      const script = new vm.Script(`${code} ${sign}${paramsstr}`);
-      const Result = [];
-      for (let i = 0; i < TestCases.length; i++) {
-        let context: any = {};
-        for (let j = 0; j < ArgsLen; j++) {
-          context[`args${j + 1}`] = TestCases[i][j];
-        }
-        const result = await ExecuteWithContexAndTimeout(
-          `${code} ${sign}${paramsstr}`,
-          context,
-          2000
-        );
-        console.log(result);
-
-        Result.push(result);
-      }
-      const Virdict = Verify(Result, ResultMap.get(Id), Id);
-      if (Virdict.virdict === true) {
-        console.log("Accepted");
-      } else {
-        console.log(
-          "Failed On TestCase",
-          Virdict?.FailedCase,
-          `expected : ${Virdict.expected} Received : ${Virdict.Received}`
-        );
-      }
-    } catch (err) {
-      console.log(err);
-    }
-  }
-};
 const GetRapidApiResponse = async (script: string) => {
   try {
     const options = {
@@ -244,15 +164,16 @@ const UseJudgeApi = async (SubmittedCode: any) => {
       console.log(err);
     }
   } else {
-    const { Id, code, IsAdmin, sign, args } = JSON.parse(SubmittedCode);
-
+    const { args, code, sign, IsAdmin, Id } = JSON.parse(SubmittedCode);
+ 
     const TestCasesFromDBQuery = await ProblemModel.findOne({ ID: Id });
     let TestCases = [];
     if (TestCasesFromDBQuery !== null) {
       TestCases = JSON.parse(TestCasesFromDBQuery.TestCase);
     }
-
-    const ArgumentArray = args.split(",");
+    console.log(TestCases);
+     
+    const ArgumentArray = [args]
     const ArgsLen = ArgumentArray.length;
     let ArgParam = "";
     for (let i = 0; i < ArgsLen; i++) {
@@ -288,9 +209,11 @@ const UseJudgeApi = async (SubmittedCode: any) => {
         const paramstr = `(${context})`;
         const log = `console.log(${sign}${paramstr})`;
         const script = `${code} ${log}`;
+      
         const result = await GetRapidApiResponse(script);
 
         const ResultByStatusCode = GetResultbyStatusCode(result);
+        console.log(ResultByStatusCode)
 
         if (ResultByStatusCode.error === null) {
           Result.push(ResultByStatusCode.output);
@@ -300,7 +223,7 @@ const UseJudgeApi = async (SubmittedCode: any) => {
       }
       const Problem = await ProblemModel.findOne({ID:Id});
       if(Problem!==null){
-        const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id);
+        const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id,TestCases);
         if (Virdict.virdict === true) {
           console.log("Accepted");
         } else {
@@ -318,7 +241,7 @@ const UseJudgeApi = async (SubmittedCode: any) => {
     }
   }
 };
-const Verify = (Array1: any, Array2: any, Id: number) => {
+const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {
   for (let i = 0; i < Array1.length; i++) {
     if (Array1[i] !== Array2[i])
       return {
@@ -326,7 +249,7 @@ const Verify = (Array1: any, Array2: any, Id: number) => {
         FailedCase: i + 1,
         expected: Array2[i],
         Received: Array1[i],
-        TestCase: TestCaseMap.get(Id)[i],
+        TestCase: TestCase[i]
       };
   }
   return { virdict: true };
@@ -347,23 +270,4 @@ const StartWorker = async () => {
 
 StartWorker(); /// Starts Processing the Submission
 
-const ExecuteWithContexAndTimeout = (
-  code: string,
-  Context: any,
-  Timeout: number | undefined
-) => {
-  const Result = new Promise((resolve, reject) => {
-    const script = new vm.Script(code);
-    const sandbox = { ...Context };
-    sandbox.console = console;
-    try {
-      const result = script.runInNewContext(sandbox);
-      console.log(result);
-      resolve(result);
-    } catch (err) {
-      reject(err);
-    }
-  });
 
-  return Promise.race([Result]);
-};

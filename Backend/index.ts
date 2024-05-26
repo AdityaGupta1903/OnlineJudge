@@ -58,6 +58,24 @@ app.post('/CreateProblem',async(req,res)=>{
         console.error(err)
     }
 })
+app.post('/SubmitProblem',async(req,res)=>{
+    try{
+        console.log(req.body)
+        const Body = req.body.id
+        console.log(Body);
+        const args = req.body.args
+        const code = req.body.code;
+        const sign = req.body.Signature
+        const Id = req.body.id
+        const IsAdmin = false;
+        console.log(JSON.stringify({args,code,sign,IsAdmin,Id}))
+        await clinet.lPush("Submission",JSON.stringify({args,code,sign,IsAdmin,Id}));
+         res.send("Problem Submitted Successfully");
+    }
+    catch(err){
+        console.error(err);
+    }
+})
 app.post('/execute', (req, res) => {
     const { code } = req.body;
     console.log(code);
@@ -100,10 +118,10 @@ app.get('/GetProblem/:id',async(req,res)=>{
       if(Problem!==null){
         const SampleInput = JSON.parse(Problem.TestCase)[0];
         const SampleOutput = JSON.parse(Problem.TestCaseResults)[0];
-        res.send({Description:Problem.Description,Sign:Problem.sign,args:Problem.args,SampleInput:SampleInput,SampleOutput:SampleOutput}); 
+        res.send({Description:Problem.Description,Sign:Problem.sign,args:Problem.args,SampleInput:SampleInput,SampleOutput:SampleOutput,ID:Problem.ID}); 
       }
       else{
-        res.send({Desription:"",Sign:"",args:"",SampleInput:"",SampleOutput:""});
+        res.send({Desription:"",Sign:"",args:"",SampleInput:"",SampleOutput:"",ID:""});
       }
       
     }
