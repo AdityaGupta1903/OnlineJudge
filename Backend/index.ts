@@ -18,7 +18,7 @@ clinet.connect().then().catch((err)=>{
 mongoose.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/").then(()=>{
     console.log("DB Connected");
 }).catch((err)=>{
-    console.log("Error in Connecting DB")
+    console.log("Error in Connecting DBBB")
 })
     
 app.get('/Run',async(req,res)=>{

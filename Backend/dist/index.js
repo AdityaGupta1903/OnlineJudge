@@ -14,23 +14,64 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const redis_1 = require("redis");
-const body_parser_1 = __importDefault(require("body-parser"));
 const vm_1 = __importDefault(require("vm"));
+const cors_1 = __importDefault(require("cors"));
+const mongoose_1 = __importDefault(require("mongoose"));
+const model_1 = __importDefault(require("./db/model"));
 const app = (0, express_1.default)();
-app.use(body_parser_1.default.json());
+app.use(express_1.default.json());
+app.use((0, cors_1.default)());
 const clinet = (0, redis_1.createClient)();
 clinet.connect().then().catch((err) => {
     console.error("connection Failed with err", err);
 });
-app.get('/Sumbit', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    console.log("ADI");
-    console.log(req.body);
-    const problemId = req.body.problemId;
+mongoose_1.default.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/").then(() => {
+    console.log("DB Connected");
+}).catch((err) => {
+    console.log("Error in Connecting DBBB");
+});
+app.get('/Run', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const Id = req.body.Id;
     const code = req.body.code;
-    const language = req.body.language;
+    const IsAdmin = false;
+    const sign = req.body.sign;
+    const args = req.body.args;
     try {
-        yield clinet.lPush("Submission", JSON.stringify({ problemId, code, language }));
+        yield clinet.lPush("Submission", JSON.stringify({ Id, code, IsAdmin, sign, args }));
         res.send("Problem Recieved and Stored");
+    }
+    catch (err) {
+        console.error(err);
+    }
+}));
+app.post('/CreateProblem', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const args = req.body.args;
+        const code = req.body.code;
+        const sign = req.body.Signature;
+        const Id = req.body.id;
+        const IsAdmin = true;
+        const Description = req.body.Description;
+        yield clinet.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
+        res.send("Problem Recieved and Stored");
+    }
+    catch (err) {
+        console.error(err);
+    }
+}));
+app.post('/SubmitProblem', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        console.log(req.body);
+        const Body = req.body.id;
+        console.log(Body);
+        const args = req.body.args;
+        const code = req.body.code;
+        const sign = req.body.Signature;
+        const Id = req.body.id;
+        const IsAdmin = false;
+        console.log(JSON.stringify({ args, code, sign, IsAdmin, Id }));
+        yield clinet.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id }));
+        res.send("Problem Submitted Successfully");
     }
     catch (err) {
         console.error(err);
@@ -58,6 +99,32 @@ app.post('/execute', (req, res) => {
         });
     }
 });
+app.get('/GetAllProblems', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const AllProblems = yield model_1.default.find({});
+        res.send(JSON.stringify(AllProblems));
+    }
+    catch (err) {
+        res.send("Error in Fetching the Data");
+    }
+}));
+app.get('/GetProblem/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const id = req.params.id;
+        const Problem = yield model_1.default.findOne({ ID: id });
+        if (Problem !== null) {
+            const SampleInput = JSON.parse(Problem.TestCase)[0];
+            const SampleOutput = JSON.parse(Problem.TestCaseResults)[0];
+            res.send({ Description: Problem.Description, Sign: Problem.sign, args: Problem.args, SampleInput: SampleInput, SampleOutput: SampleOutput, ID: Problem.ID });
+        }
+        else {
+            res.send({ Desription: "", Sign: "", args: "", SampleInput: "", SampleOutput: "", ID: "" });
+        }
+    }
+    catch (err) {
+        res.send("Error Loading The Data");
+    }
+}));
 app.listen(3000, () => {
     console.log("Connected");
 });

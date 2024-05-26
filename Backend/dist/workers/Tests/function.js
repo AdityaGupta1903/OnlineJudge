@@ -4,7 +4,7 @@ exports.Tests = void 0;
 function Tests(arr) {
     /// generate 10 tcs
     let cases = [];
-    let t = 10;
+    let t = 3;
     while (t-- > 0) {
         let list = [];
         for (let i = 0; i < arr.length; i++) {
