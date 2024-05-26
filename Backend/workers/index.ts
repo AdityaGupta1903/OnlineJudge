@@ -1,6 +1,5 @@
 import { createClient } from "redis";
 import { Tests } from "./Tests/function";
-import vm, { Script } from "vm";
 import axios from "axios";
 import mongoose from "mongoose";
 import ProblemModel from "./../db/model";

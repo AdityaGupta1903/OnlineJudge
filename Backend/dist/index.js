@@ -22,15 +22,21 @@ const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
 const clinet = (0, redis_1.createClient)();
-clinet.connect().then().catch((err) => {
+clinet
+    .connect()
+    .then()
+    .catch((err) => {
     console.error("connection Failed with err", err);
 });
-mongoose_1.default.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/").then(() => {
+mongoose_1.default
+    .connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/")
+    .then(() => {
     console.log("DB Connected");
-}).catch((err) => {
-    console.log("Error in Connecting DBBB");
+})
+    .catch((err) => {
+    console.log("Error in Connecting DBBBB");
 });
-app.get('/Run', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get("/Run", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const Id = req.body.Id;
     const code = req.body.code;
     const IsAdmin = false;
@@ -44,7 +50,7 @@ app.get('/Run', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         console.error(err);
     }
 }));
-app.post('/CreateProblem', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post("/CreateProblem", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const args = req.body.args;
         const code = req.body.code;
@@ -59,7 +65,7 @@ app.post('/CreateProblem', (req, res) => __awaiter(void 0, void 0, void 0, funct
         console.error(err);
     }
 }));
-app.post('/SubmitProblem', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post("/SubmitProblem", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         console.log(req.body);
         const Body = req.body.id;
@@ -77,7 +83,7 @@ app.post('/SubmitProblem', (req, res) => __awaiter(void 0, void 0, void 0, funct
         console.error(err);
     }
 }));
-app.post('/execute', (req, res) => {
+app.post("/execute", (req, res) => {
     const { code } = req.body;
     console.log(code);
     const script = new vm_1.default.Script(`${code} addNumbers(x,y)`);
@@ -94,12 +100,12 @@ app.post('/execute', (req, res) => {
         res.status(400).send({
             error: {
                 message: error.message,
-                stack: error.stack
-            }
+                stack: error.stack,
+            },
         });
     }
 });
-app.get('/GetAllProblems', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get("/GetAllProblems", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const AllProblems = yield model_1.default.find({});
         res.send(JSON.stringify(AllProblems));
@@ -108,17 +114,31 @@ app.get('/GetAllProblems', (req, res) => __awaiter(void 0, void 0, void 0, funct
         res.send("Error in Fetching the Data");
     }
 }));
-app.get('/GetProblem/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const id = req.params.id;
         const Problem = yield model_1.default.findOne({ ID: id });
         if (Problem !== null) {
             const SampleInput = JSON.parse(Problem.TestCase)[0];
             const SampleOutput = JSON.parse(Problem.TestCaseResults)[0];
-            res.send({ Description: Problem.Description, Sign: Problem.sign, args: Problem.args, SampleInput: SampleInput, SampleOutput: SampleOutput, ID: Problem.ID });
+            res.send({
+                Description: Problem.Description,
+                Sign: Problem.sign,
+                args: Problem.args,
+                SampleInput: SampleInput,
+                SampleOutput: SampleOutput,
+                ID: Problem.ID,
+            });
         }
         else {
-            res.send({ Desription: "", Sign: "", args: "", SampleInput: "", SampleOutput: "", ID: "" });
+            res.send({
+                Desription: "",
+                Sign: "",
+                args: "",
+                SampleInput: "",
+                SampleOutput: "",
+                ID: "",
+            });
         }
     }
     catch (err) {
