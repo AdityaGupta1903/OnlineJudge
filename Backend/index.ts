@@ -4,11 +4,13 @@ import vm from "vm";
 import cors from "cors";
 import mongoose from "mongoose";
 import ProblemModel from "./db/model";
+
 const app = express();
 app.use(express.json());
 app.use(cors());
 
 const clinet = createClient();
+
 
 clinet
   .connect()
@@ -145,6 +147,7 @@ app.get("/GetProblem/:id", async (req, res) => {
     res.send("Error Loading The Data");
   }
 });
+
 
 app.listen(3000, () => {
   console.log("Connected");
