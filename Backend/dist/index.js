@@ -145,6 +145,6 @@ app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, funct
         res.send("Error Loading The Data");
     }
 }));
-app.listen(3000, () => {
+app.listen(80, () => {
     console.log("Connected");
 });
