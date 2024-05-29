@@ -1,0 +1,1 @@
+ssh -t -i "OnlineJudge.pem" ubuntu@ec2-13-53-45-202.eu-north-1.compute.amazonaws.com "sudo bash ~/deploy.sh"
