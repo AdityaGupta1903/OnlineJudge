@@ -181,7 +181,7 @@ const UseJudgeApi = async (SubmittedCode: any) => {
         : (ArgParam += `args${i + 1},`);
     }
     try {
-      // const script = new vm.Script(`${code} ${sign}${paramsstr}`);
+      
       const Result = [];
       for (let i = 0; i < TestCases.length; i++) {
         let context: string = "";

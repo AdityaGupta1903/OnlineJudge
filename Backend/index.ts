@@ -56,10 +56,11 @@ app.post("/CreateProblem", async (req, res) => {
     const Id = req.body.id;
     const IsAdmin = true;
     const Description = req.body.Description;
-    await clinet.lPush(
-      "Submission",
-      JSON.stringify({ args, code, sign, IsAdmin, Id, Description })
-    );
+    // await clinet.lPush(
+    //   "Submission",
+    //   JSON.stringify({ args, code, sign, IsAdmin, Id, Description })
+    // );
+    console.log(JSON.stringify({ args, code, sign, IsAdmin, Id, Description }))
     res.send("Problem Recieved and Stored");
   } catch (err) {
     console.error(err);
@@ -85,30 +86,30 @@ app.post("/SubmitProblem", async (req, res) => {
     console.error(err);
   }
 });
-app.post("/execute", (req, res) => {
-  const { code } = req.body;
-  console.log(code);
+// app.post("/execute", (req, res) => {
+//   const { code } = req.body;
+//   console.log(code);
 
-  const script = new vm.Script(`${code} addNumbers(x,y)`);
+//   const script = new vm.Script(`${code} addNumbers(x,y)`);
 
-  const context = {
-    x: 5,
-    y: 10,
-  };
+//   const context = {
+//     x: 5,
+//     y: 10,
+//   };
 
-  try {
-    const result = script.runInNewContext(context);
-    console.log(result);
-    res.json({ result });
-  } catch (error: any) {
-    res.status(400).send({
-      error: {
-        message: error.message,
-        stack: error.stack,
-      },
-    });
-  }
-});
+//   try {
+//     const result = script.runInNewContext(context);
+//     console.log(result);
+//     res.json({ result });
+//   } catch (error: any) {
+//     res.status(400).send({
+//       error: {
+//         message: error.message,
+//         stack: error.stack,
+//       },
+//     });
+//   }
+// });
 
 app.get("/GetAllProblems", async (req, res) => {
   try {
