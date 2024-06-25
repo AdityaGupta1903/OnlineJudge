@@ -3,8 +3,18 @@ import { Tests } from "./Tests/function";
 import axios from "axios";
 import mongoose from "mongoose";
 import ProblemModel from "./../db/model";
-import { json } from "express";
-const client = createClient();
+
+
+export const client = createClient({socket:{
+  host : "localhost",
+  port : 6379
+}
+});
+export const ResultClinet = createClient({socket:{
+  host : "localhost",
+  port : 6379
+}
+});
 const ResultMap = new Map();
 const TestCaseMap = new Map();
 mongoose
@@ -17,7 +27,7 @@ mongoose
   .catch((err) => {
     console.log(err);
   });
-
+  
 const GetRapidApiResponse = async (script: string) => {
   try {
     const options = {
@@ -81,7 +91,7 @@ const GetResultbyStatusCode = (object: any) => {
     return { error: object?.stderr, output: null };
   }
 };
-const UseJudgeApi = async (SubmittedCode: any) => {
+export const UseJudgeApi = async (SubmittedCode: any) => {
   const Params = JSON.parse(SubmittedCode);
   if (Params.IsAdmin === true) {
     /// Process for Admin for Submitting the Question
@@ -170,8 +180,8 @@ const UseJudgeApi = async (SubmittedCode: any) => {
     if (TestCasesFromDBQuery !== null) {
       TestCases = JSON.parse(TestCasesFromDBQuery.TestCase);
     }
-    console.log(TestCases);
-     
+    console.log("Reached");
+      
     const ArgumentArray = [args]
     const ArgsLen = ArgumentArray.length;
     let ArgParam = "";
@@ -210,33 +220,39 @@ const UseJudgeApi = async (SubmittedCode: any) => {
         const script = `${code} ${log}`;
       
         const result = await GetRapidApiResponse(script);
+        
 
         const ResultByStatusCode = GetResultbyStatusCode(result);
-        console.log(ResultByStatusCode)
+       
 
         if (ResultByStatusCode.error === null) {
           Result.push(ResultByStatusCode.output);
         } else {
           /// display Error to the User or Admin
+          
         }
       }
       const Problem = await ProblemModel.findOne({ID:Id});
+      // console.log("Problem"+" "+Problem)
       if(Problem!==null){
         const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id,TestCases);
         if (Virdict.virdict === true) {
           console.log("Accepted");
+          await ResultClinet.lPush("Result",JSON.stringify({message:"Error"}))
+          
         } else {
-          console.log(
-            "Failed On TestCase",
-            Virdict?.FailedCase,
-            `expected : ${Virdict.expected} Received : ${Virdict.Received}`
-          );
+          // console.log(
+          //   "Failed On TestCase",
+          //   Virdict?.FailedCase,
+          //   `expected : ${Virdict.expected} Received : ${Virdict.Received}`
+          // );
+          console.log("ADIL")
+           const resp = await ResultClinet.lPush("Result",JSON.stringify({message:"Accepted"}))
+           console.log(resp)
         }
       }
-      
-      // ResultMap.set(Id, Result);
     } catch (err) {
-      console.log(err);
+      return {message:"Rejected"};
     }
   }
 };
@@ -256,12 +272,14 @@ const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {
 const StartWorker = async () => {
   try {
     await client.connect();
+    await ResultClinet.connect();
     console.log("Worker connected to Redis.");
     while (true) {
       const SubmittedCode = await client.brPop("Submission", 0);
-      // ProcessSubmission(SubmittedCode?.element);
+      
       UseJudgeApi(SubmittedCode?.element);
     }
+    
   } catch (err) {
     console.error(err);
   }
