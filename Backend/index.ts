@@ -13,15 +13,17 @@ app.use(express.json());
 app.use(cors());
 
 // Initialize Redis clients
-const client = createClient({socket:{
-  host : "localhost",
-  port : 6379
-}
+const client = createClient({
+  socket:{
+    host : 'redis', /// for the Container of redis
+    port : 6379
+  }
 });
-const ResultClient = createClient({socket:{
-  host : "localhost",
-  port : 6379
-}
+const ResultClient = createClient({
+  socket:{
+    host : 'redis',  /// for the Container of redis
+    port : 6379
+  }
 });
 
 // Create HTTP server and Socket.IO server

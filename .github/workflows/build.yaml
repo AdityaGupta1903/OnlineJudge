@@ -1,0 +1,40 @@
+name: Build and Deploy Docker Image
+
+on:
+  push:
+    branches:
+      - main  # Adjust the branch name as needed
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      DOCKERHUB_REPO: yourdockerhubusername/my-node-app  # Replace with your Docker Hub repository
+      EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+      EC2_USERNAME: OnlineJudgeWithDocker  # Adjust if your EC2 instance uses a different username
+      EC2_HOST: ec2-13-60-31-241.eu-north-1.compute.amazonaws.com  # Replace with your EC2 instance's public DNS or IP
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Log in to Docker Hub
+        run: docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+
+      - name: Build and push Docker image
+        run: |
+          docker-compose -f docker-compose.yml build
+          docker-compose -f docker-compose.yml push
+
+      - name: SSH into EC2 instance and deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            sudo docker-compose -f /path/to/your/docker-compose.yml pull
+            sudo docker-compose -f /path/to/your/docker-compose.yml up -d

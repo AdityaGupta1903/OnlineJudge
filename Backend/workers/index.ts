@@ -2,18 +2,20 @@ import { createClient } from "redis";
 import { Tests } from "./Tests/function";
 import axios from "axios";
 import mongoose from "mongoose";
-import ProblemModel from "./../db/model";
+import ProblemModel from "../db/model";
 
 
-export const client = createClient({socket:{
-  host : "localhost",
-  port : 6379
-}
+export const client = createClient({
+  socket:{
+    host : 'redis',
+    port : 6379
+  }
 });
-export const ResultClinet = createClient({socket:{
-  host : "localhost",
-  port : 6379
-}
+export const ResultClinet = createClient({
+  socket:{
+    host : 'redis',
+    port : 6379
+  }
 });
 const ResultMap = new Map();
 const TestCaseMap = new Map();
@@ -256,7 +258,7 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
     }
   }
 };
-const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {
+const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {  //// Verify the Tests 
   for (let i = 0; i < Array1.length; i++) {
     if (Array1[i] !== Array2[i])
       return {
@@ -269,7 +271,7 @@ const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {
   }
   return { virdict: true };
 };
-const StartWorker = async () => {
+const StartWorker = async () => {   //// Pops the Submission from the Queue and Starts the Process
   try {
     await client.connect();
     await ResultClinet.connect();
