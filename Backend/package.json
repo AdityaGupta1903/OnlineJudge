@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "RunSolution": "concurrently \"npx nodemon index.ts\" \"cd workers && npx nodemon index.ts\""
+    "RunSolution": "concurrently \"tsc -b && cd dist && pm2 start index.js && cd workers && pm2 start index.js\" "
   },
   "keywords": [],
   "author": "",
@@ -19,6 +19,7 @@
     "express": "^4.19.2",
     "mongoose": "^8.4.0",
     "nginx": "^1.0.8",
+    "pm2": "^5.4.1",
     "redis": "^4.6.13",
     "redis-server": "^1.2.2",
     "socket.io": "^4.7.5",
