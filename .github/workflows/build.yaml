@@ -14,7 +14,7 @@ jobs:
       DOCKERHUB_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
       DOCKERHUB_REPO: adityagupta1903/onlinejudge  # Replace with your Docker Hub repository
       EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-      EC2_USERNAME: OnlineJudgeWithGihubActions  # Adjust if your EC2 instance uses a different username
+      EC2_USERNAME: ubuntu  # Adjust if your EC2 instance uses a different username
       EC2_HOST: ec2-16-171-151-38.eu-north-1.compute.amazonaws.com  # Replace with your EC2 instance's public DNS or IP
 
     steps:
