@@ -35,7 +35,7 @@ jobs:
       - name: Verify Pushed Image
            run: docker pull adityagupta1903/onlinejudge:latest
 
-      - name: SSH into EC2 instance and deploy
+      - name: SSH into EC2 instance and deployed
         uses: appleboy/ssh-action@master
         with:
           host: ${{ env.EC2_HOST }}
