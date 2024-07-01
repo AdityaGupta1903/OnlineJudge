@@ -14,114 +14,124 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const redis_1 = require("redis");
-const vm_1 = __importDefault(require("vm"));
 const cors_1 = __importDefault(require("cors"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const model_1 = __importDefault(require("./db/model"));
+const http_1 = __importDefault(require("http"));
+const socket_io_1 = require("socket.io");
+// Initialize Express app
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
-const clinet = (0, redis_1.createClient)();
-clinet
-    .connect()
-    .then()
-    .catch((err) => {
-    console.error("connection Failed with err", err);
+// Initialize Redis clients
+const client = (0, redis_1.createClient)({
+    socket: {
+        host: 'redis',
+        port: 6379
+    }
 });
-mongoose_1.default
-    .connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/")
+const ResultClient = (0, redis_1.createClient)({
+    socket: {
+        host: 'redis',
+        port: 6379
+    }
+});
+// Create HTTP server and Socket.IO server
+const server = http_1.default.createServer(app);
+const io = new socket_io_1.Server(server);
+// Connect to Redis clients
+client.connect().catch(err => {
+    console.error("Connection failed with error", err);
+});
+ResultClient.connect().then(() => console.log("Connected to Result Client"));
+// Connect to MongoDB
+mongoose_1.default.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/")
     .then(() => {
     console.log("DB Connected");
 })
-    .catch((err) => {
-    console.log("Error in Connecting DBBBB");
+    .catch(err => {
+    console.log("Error in connecting to DB", err);
 });
+// Define routes
 app.get("/Run", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const Id = req.body.Id;
-    const code = req.body.code;
+    const { Id, code, sign, args } = req.body;
     const IsAdmin = false;
-    const sign = req.body.sign;
-    const args = req.body.args;
     try {
-        yield clinet.lPush("Submission", JSON.stringify({ Id, code, IsAdmin, sign, args }));
-        res.send("Problem Recieved and Stored");
+        yield client.lPush("Submission", JSON.stringify({ Id, code, IsAdmin, sign, args }));
+        res.send("Problem received and stored");
     }
     catch (err) {
         console.error(err);
+        res.status(500).send("Error storing problem");
     }
 }));
 app.post("/CreateProblem", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { args, code, Signature: sign, id: Id, Description } = req.body;
+    const IsAdmin = true;
     try {
-        const args = req.body.args;
-        const code = req.body.code;
-        const sign = req.body.Signature;
-        const Id = req.body.id;
-        const IsAdmin = true;
-        const Description = req.body.Description;
-        yield clinet.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
-        res.send("Problem Recieved and Stored");
+        yield client.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
+        console.log(JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
+        res.send("Problem received and stored");
     }
     catch (err) {
         console.error(err);
+        res.status(500).send("Error storing problem");
     }
 }));
 app.post("/SubmitProblem", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id: Id, args, code, Signature: sign } = req.body;
+    const IsAdmin = false;
     try {
-        console.log(req.body);
-        const Body = req.body.id;
-        console.log(Body);
-        const args = req.body.args;
-        const code = req.body.code;
-        const sign = req.body.Signature;
-        const Id = req.body.id;
-        const IsAdmin = false;
         console.log(JSON.stringify({ args, code, sign, IsAdmin, Id }));
-        yield clinet.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id }));
-        res.send("Problem Submitted Successfully");
+        yield client.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id }));
+        res.send("Problem submitted successfully");
     }
     catch (err) {
         console.error(err);
+        res.status(500).send("Error submitting problem");
     }
 }));
-app.post("/execute", (req, res) => {
-    const { code } = req.body;
-    console.log(code);
-    const script = new vm_1.default.Script(`${code} addNumbers(x,y)`);
-    const context = {
-        x: 5,
-        y: 10,
-    };
-    try {
-        const result = script.runInNewContext(context);
-        console.log(result);
-        res.json({ result });
-    }
-    catch (error) {
-        res.status(400).send({
-            error: {
-                message: error.message,
-                stack: error.stack,
-            },
-        });
-    }
+// Set up Socket.IO connection
+io.on('connection', (socket) => {
+    console.log('A user connected');
+    // Listen for results and emit to client
+    const processSubmission = () => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            let len = yield ResultClient.LLEN('Result');
+            while (len-- > 0) {
+                const Result = yield ResultClient.brPop('Result', 0);
+                socket.emit('ResultConnection', JSON.stringify(Result));
+            }
+        }
+        catch (_a) {
+        }
+    });
+    setTimeout(() => {
+        processSubmission();
+    }, 2000);
+    socket.emit('message', "Hello Aditya");
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
 });
+// Additional routes
 app.get("/GetAllProblems", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const AllProblems = yield model_1.default.find({});
-        res.send(JSON.stringify(AllProblems));
+        res.json(AllProblems);
     }
     catch (err) {
-        res.send("Error in Fetching the Data");
+        res.status(500).send("Error fetching data");
     }
 }));
 app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const id = req.params.id;
+        const { id } = req.params;
         const Problem = yield model_1.default.findOne({ ID: id });
         if (Problem !== null) {
             const SampleInput = JSON.parse(Problem.TestCase)[0];
             const SampleOutput = JSON.parse(Problem.TestCaseResults)[0];
-            res.send({
+            res.json({
                 Description: Problem.Description,
                 Sign: Problem.sign,
                 args: Problem.args,
@@ -131,8 +141,8 @@ app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, funct
             });
         }
         else {
-            res.send({
-                Desription: "",
+            res.json({
+                Description: "",
                 Sign: "",
                 args: "",
                 SampleInput: "",
@@ -142,9 +152,11 @@ app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, funct
         }
     }
     catch (err) {
-        res.send("Error Loading The Data");
+        res.status(500).send("Error loading the data");
     }
 }));
-app.listen(3000, () => {
-    console.log("Connectedddd sdksdvvsvavdvs");
+// Start the server
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });

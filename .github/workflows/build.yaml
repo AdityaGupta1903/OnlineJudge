@@ -32,7 +32,7 @@ jobs:
           push: true
           tags: adityagupta1903/onlinejudge:latest
 
-      - name: Verify Pushed Image
+      - name: Verify Pushed Images
         run: docker pull adityagupta1903/onlinejudge:latest
 
       - name: SSH into EC2 instance and deploy
