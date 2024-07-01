@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "RunSolution": "concurrently \"tsc -b && cd dist && pm2 start index.js && cd workers && pm2 start index.js\" "
+    "RunSolution": "concurrently \"tsc -b && cd dist && pm2 start index.js && cd workers && pm2 start index.js && pm2 logs\" "
   },
   "keywords": [],
   "author": "",
