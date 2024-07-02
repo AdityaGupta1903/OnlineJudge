@@ -277,7 +277,7 @@ const StartWorker = async () => {   //// Pops the Submission from the Queue and 
     await ResultClinet.connect();
     console.log("Worker connected to Redis.");
     while (true) {
-      const SubmittedCode = await client.brPop("Submission", 0);
+      const SubmittedCode = await client.brPop("Submissions", 0);
       
       UseJudgeApi(SubmittedCode?.element);
     }
