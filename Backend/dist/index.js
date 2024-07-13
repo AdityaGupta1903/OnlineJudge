@@ -17,33 +17,24 @@ const redis_1 = require("redis");
 const cors_1 = __importDefault(require("cors"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const model_1 = __importDefault(require("./db/model"));
-const http_1 = __importDefault(require("http"));
-const socket_io_1 = require("socket.io");
+const userModel_1 = __importDefault(require("./db/userModel"));
 // Initialize Express app
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
 // Initialize Redis clients
-const client = (0, redis_1.createClient)({
-    socket: {
-        host: 'redis',
-        port: 6379
-    }
-});
-const ResultClient = (0, redis_1.createClient)({
-    socket: {
-        host: 'redis',
-        port: 6379
-    }
-});
-// Create HTTP server and Socket.IO server
-const server = http_1.default.createServer(app);
-const io = new socket_io_1.Server(server);
+const client = (0, redis_1.createClient)(
+//   {
+//   socket:{
+//     host : 'redis', /// for the Container of redis
+//     port : 6379
+//   }
+// }
+);
 // Connect to Redis clients
 client.connect().catch(err => {
     console.error("Connection failed with error", err);
 });
-ResultClient.connect().then(() => console.log("Connected to Result Client"));
 // Connect to MongoDB
 mongoose_1.default.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/")
     .then(() => {
@@ -70,7 +61,6 @@ app.post("/CreateProblem", (req, res) => __awaiter(void 0, void 0, void 0, funct
     const IsAdmin = true;
     try {
         yield client.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
-        console.log(JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
         res.send("Problem received and stored");
     }
     catch (err) {
@@ -83,7 +73,7 @@ app.post("/SubmitProblem", (req, res) => __awaiter(void 0, void 0, void 0, funct
     const IsAdmin = false;
     try {
         console.log(JSON.stringify({ args, code, sign, IsAdmin, Id }));
-        yield client.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id }));
+        yield client.lPush("Submissions", JSON.stringify({ args, code, sign, IsAdmin, Id }));
         res.send("Problem submitted successfully");
     }
     catch (err) {
@@ -91,29 +81,6 @@ app.post("/SubmitProblem", (req, res) => __awaiter(void 0, void 0, void 0, funct
         res.status(500).send("Error submitting problem");
     }
 }));
-// Set up Socket.IO connection
-io.on('connection', (socket) => {
-    console.log('A user connected');
-    // Listen for results and emit to client
-    const processSubmission = () => __awaiter(void 0, void 0, void 0, function* () {
-        try {
-            let len = yield ResultClient.LLEN('Result');
-            while (len-- > 0) {
-                const Result = yield ResultClient.brPop('Result', 0);
-                socket.emit('ResultConnection', JSON.stringify(Result));
-            }
-        }
-        catch (_a) {
-        }
-    });
-    setTimeout(() => {
-        processSubmission();
-    }, 2000);
-    socket.emit('message', "Hello Aditya");
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
-    });
-});
 // Additional routes
 app.get("/GetAllProblems", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -155,8 +122,22 @@ app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, funct
         res.status(500).send("Error loading the data");
     }
 }));
+app.get('/GetAllProblemStatus', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        let UserProblemArray = yield userModel_1.default.findOne({ Id: 1 }); /// change Id to the User Id 
+        if (UserProblemArray) {
+            res.status(200).send(JSON.stringify(UserProblemArray.ProblemVirdict));
+        }
+        else {
+            res.status(200).send(JSON.stringify([]));
+        }
+    }
+    catch (err) {
+        console.log(err);
+    }
+}));
 // Start the server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });

@@ -12,24 +12,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UseJudgeApi = exports.ResultClinet = exports.client = void 0;
+exports.UseJudgeApi = exports.client = void 0;
 const redis_1 = require("redis");
 const function_1 = require("./Tests/function");
 const axios_1 = __importDefault(require("axios"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const model_1 = __importDefault(require("../db/model"));
-exports.client = (0, redis_1.createClient)({
-    socket: {
-        host: 'redis',
-        port: 6379
-    }
-});
-exports.ResultClinet = (0, redis_1.createClient)({
-    socket: {
-        host: 'redis',
-        port: 6379
-    }
-});
+const userModel_1 = __importDefault(require("../db/userModel"));
+exports.client = (0, redis_1.createClient)(
+//   {
+//   socket:{
+//     host : 'redis',
+//     port : 6379
+//   }
+// }
+);
 const ResultMap = new Map();
 const TestCaseMap = new Map();
 mongoose_1.default
@@ -88,6 +85,33 @@ const GetRapidApiResponse = (script) => __awaiter(void 0, void 0, void 0, functi
         return {
             status: { id: 19 },
         };
+    }
+});
+const PushResultToDatabase = (ResultObject) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        let UserProblemArray = yield userModel_1.default.findOne({ Id: 1 });
+        console.log(UserProblemArray);
+        if (UserProblemArray) {
+            let ProblemArray = UserProblemArray.ProblemVirdict.some(item => item.ProblemId === (ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID)); /// Find the Users Problem Array 
+            if (ProblemArray) {
+                yield userModel_1.default.findOneAndUpdate({ Id: 1, 'ProblemVirdict.ProblemId': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID }, { $set: { 'ProblemVirdict.$.Virdict': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } /// Update the Problems Virdict of the User
+                );
+            }
+            else {
+                yield userModel_1.default.findOneAndUpdate({ Id: 1 }, { $push: { ProblemVirdict: { ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } } /// The User is solving this Problem first time so push this problem
+                );
+            }
+        }
+        else {
+            let problem = new userModel_1.default({
+                Id: 1,
+                ProblemVirdict: [{ ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message }] /// The User has just solved his first problem to the Platform
+            });
+            problem.save();
+        }
+    }
+    catch (err) {
+        console.log(err);
     }
 });
 const GetResultbyStatusCode = (object) => {
@@ -197,7 +221,6 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
         if (TestCasesFromDBQuery !== null) {
             TestCases = JSON.parse(TestCasesFromDBQuery.TestCase);
         }
-        console.log("Reached");
         const ArgumentArray = [args];
         const ArgsLen = ArgumentArray.length;
         let ArgParam = "";
@@ -243,7 +266,8 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                     Result.push(ResultByStatusCode.output);
                 }
                 else {
-                    /// display Error to the User or Admin
+                    /// display Error to the User or Admin And Handle the case of Submission limit Reached for the day
+                    //// For now Assume the 
                 }
             }
             const Problem = yield model_1.default.findOne({ ID: Id });
@@ -251,8 +275,7 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
             if (Problem !== null) {
                 const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id, TestCases);
                 if (Virdict.virdict === true) {
-                    console.log("Accepted");
-                    yield exports.ResultClinet.lPush("Result", JSON.stringify({ message: "Error" }));
+                    PushResultToDatabase({ message: "Accepted", ID: Id }); /// Show the Accepted Virdict to the User 
                 }
                 else {
                     // console.log(
@@ -260,9 +283,7 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                     //   Virdict?.FailedCase,
                     //   `expected : ${Virdict.expected} Received : ${Virdict.Received}`
                     // );
-                    console.log("ADIL");
-                    const resp = yield exports.ResultClinet.lPush("Result", JSON.stringify({ message: "Accepted" }));
-                    console.log(resp);
+                    PushResultToDatabase({ message: "Rejected", ID: Id }); /// Also show the failed test to the User
                 }
             }
         }
@@ -288,10 +309,9 @@ const Verify = (Array1, Array2, Id, TestCase) => {
 const StartWorker = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         yield exports.client.connect();
-        yield exports.ResultClinet.connect();
         console.log("Worker connected to Redis.");
         while (true) {
-            const SubmittedCode = yield exports.client.brPop("Submission", 0);
+            const SubmittedCode = yield exports.client.brPop("Submissions", 0);
             (0, exports.UseJudgeApi)(SubmittedCode === null || SubmittedCode === void 0 ? void 0 : SubmittedCode.element);
         }
     }

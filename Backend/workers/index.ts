@@ -3,20 +3,19 @@ import { Tests } from "./Tests/function";
 import axios from "axios";
 import mongoose from "mongoose";
 import ProblemModel from "../db/model";
+import UserModel from '../db/userModel'
+import {IResult} from '../model/IResult'
+import  Jwt  from "jsonwebtoken";
 
+export const client = createClient(
+//   {
+//   socket:{
+//     host : 'redis',
+//     port : 6379
+//   }
+// }
+);
 
-export const client = createClient({
-  socket:{
-    host : 'redis',
-    port : 6379
-  }
-});
-export const ResultClinet = createClient({
-  socket:{
-    host : 'redis',
-    port : 6379
-  }
-});
 const ResultMap = new Map();
 const TestCaseMap = new Map();
 mongoose
@@ -81,6 +80,53 @@ const GetRapidApiResponse = async (script: string) => {
     };
   }
 };
+const PushResultToDatabase = async (ResultObject:IResult)=>{
+   const token = ResultObject.token;
+   
+    try {
+        const UserDetails = Jwt.verify(token,"S3CRET");
+        
+        if(typeof(UserDetails)!=='string'){
+          const Username = UserDetails.username;
+          const Password = UserDetails.password;
+          
+          let UserProblemArray = await UserModel.findOne({ username: Username });
+
+          if (UserProblemArray) {
+            let ProblemArray = UserProblemArray.ProblemVirdict.some(item => item.ProblemId === ResultObject?.ID); /// Find the Users Problem Array 
+            if (ProblemArray) {
+              await UserModel.findOneAndUpdate(
+                { username: Username,password :Password, 'ProblemVirdict.ProblemId': ResultObject?.ID },
+                { $set: { 'ProblemVirdict.$.Virdict': ResultObject?.message } }    /// Update the Problems Virdict of the User
+              );
+            }
+            else{
+              await UserModel.findOneAndUpdate(
+                { username: Username,password : Password },
+                { $push: { ProblemVirdict: { ProblemId: ResultObject?.ID, Virdict: ResultObject?.message } } } /// The User is solving this Problem first time so push this problem
+              );
+            }
+            
+          }
+          else {
+            let problem = new UserModel({
+              username: Username,
+              password : Password,
+              ProblemVirdict: [{ ProblemId: ResultObject?.ID, Virdict: ResultObject?.message }]      /// The User has just solved his first problem to the Platform
+            })
+            problem.save();
+          }
+        }
+        else{
+          console.log("ERROR FETCHING TOKEN")
+        }
+       
+    }
+    catch (err) {
+      console.log(err)
+    }
+  }
+  
 const GetResultbyStatusCode = (object: any) => {
   if (object?.status?.id == 3) {
     return { error: null, output: object?.stdout };
@@ -142,7 +188,7 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
         const result = await GetRapidApiResponse(script);
 
         const ResultByStatusCode = GetResultbyStatusCode(result);
-        console.log(ResultByStatusCode);
+        
         if (ResultByStatusCode.error === null) {
           Result.push(ResultByStatusCode.output);
         } else {
@@ -175,14 +221,14 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
       console.log(err);
     }
   } else {
-    const { args, code, sign, IsAdmin, Id } = JSON.parse(SubmittedCode);
+    const { args, code, sign, IsAdmin, Id,token } = JSON.parse(SubmittedCode);
  
     const TestCasesFromDBQuery = await ProblemModel.findOne({ ID: Id });
     let TestCases = [];
     if (TestCasesFromDBQuery !== null) {
       TestCases = JSON.parse(TestCasesFromDBQuery.TestCase);
     }
-    console.log("Reached");
+  
       
     const ArgumentArray = [args]
     const ArgsLen = ArgumentArray.length;
@@ -229,28 +275,32 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
 
         if (ResultByStatusCode.error === null) {
           Result.push(ResultByStatusCode.output);
-        } else {
-          /// display Error to the User or Admin
-          
+        } else { 
+          /// display Error to the User or Admin And Handle the case of Submission limit Reached for the day
+          //// For now Assume the 
+          console.log(ResultByStatusCode.error);
+          Result.push(-1);
         }
       }
       const Problem = await ProblemModel.findOne({ID:Id});
       // console.log("Problem"+" "+Problem)
       if(Problem!==null){
         const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id,TestCases);
+        console.log(Virdict)
         if (Virdict.virdict === true) {
-          console.log("Accepted");
-          await ResultClinet.lPush("Result",JSON.stringify({message:"Error"}))
-          
-        } else {
+          PushResultToDatabase({message:"Accepted",ID:Id,token:token});   /// Show the Accepted Virdict to the User 
+        } else if(Virdict.virdict === false) {
           // console.log(
           //   "Failed On TestCase",
           //   Virdict?.FailedCase,
           //   `expected : ${Virdict.expected} Received : ${Virdict.Received}`
           // );
-          console.log("ADIL")
-           const resp = await ResultClinet.lPush("Result",JSON.stringify({message:"Accepted"}))
-           console.log(resp)
+           
+           PushResultToDatabase({message:"Wrong Answer",ID:Id,token:token});  /// Also show the failed test to the User
+        }
+        else{
+          console.log("Reached");
+          PushResultToDatabase({message:"Submission Limit Exceed for the Day ",ID:Id,token:token}); 
         }
       }
     } catch (err) {
@@ -260,7 +310,11 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
 };
 const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {  //// Verify the Tests 
   for (let i = 0; i < Array1.length; i++) {
-    if (Array1[i] !== Array2[i])
+    console.log(Array1[i]+" "+Array2[i]);
+    if(Array1[i] === -1){
+      return {virdit : "Submission Limit Reached"}
+    }
+   else if (Array1[i] !== Array2[i])
       return {
         virdict: false,
         FailedCase: i + 1,
@@ -268,20 +322,21 @@ const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {  //// Ve
         Received: Array1[i],
         TestCase: TestCase[i]
       };
-  }
-  return { virdict: true };
+    
+ 
+}
+
+return {Virdict : true}
+
 };
 const StartWorker = async () => {   //// Pops the Submission from the Queue and Starts the Process
   try {
     await client.connect();
-    await ResultClinet.connect();
     console.log("Worker connected to Redis.");
     while (true) {
-      const SubmittedCode = await client.brPop("Submissions", 0);
-      
+      const SubmittedCode = await client.brPop("Submissions", 0); 
       UseJudgeApi(SubmittedCode?.element);
     }
-    
   } catch (err) {
     console.error(err);
   }

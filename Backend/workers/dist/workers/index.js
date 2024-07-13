@@ -12,12 +12,28 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.UseJudgeApi = exports.ResultClinet = exports.client = void 0;
 const redis_1 = require("redis");
 const function_1 = require("./Tests/function");
 const axios_1 = __importDefault(require("axios"));
 const mongoose_1 = __importDefault(require("mongoose"));
-const model_1 = __importDefault(require("./../db/model"));
-const client = (0, redis_1.createClient)();
+const model_1 = require("../db/model");
+exports.client = (0, redis_1.createClient)(
+//   {
+//   socket:{
+//     host : 'redis',
+//     port : 6379
+//   }
+// }
+);
+exports.ResultClinet = (0, redis_1.createClient)(
+//   {
+//   socket:{
+//     host : 'redis',
+//     port : 6379
+//   }
+// }
+);
 const ResultMap = new Map();
 const TestCaseMap = new Map();
 mongoose_1.default
@@ -153,8 +169,8 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
             }
             if (IsError === false) {
                 ResultMap.set(Id, Result);
-                if ((yield model_1.default.findOne({ ID: Id })) === null) {
-                    let Problem = new model_1.default({
+                if ((yield model_1.ProblemModel.findOne({ ID: Id })) === null) {
+                    let Problem = new model_1.ProblemModel({
                         ID: Id,
                         args: args,
                         TestCase: JSON.stringify(TestCases),
@@ -167,7 +183,7 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                 }
                 else {
                     console.log("Problem Already Exists");
-                    console.log(yield model_1.default.findOne({ ID: Id }));
+                    console.log(yield model_1.ProblemModel.findOne({ ID: Id }));
                 }
             }
             else {
@@ -180,12 +196,11 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
     }
     else {
         const { args, code, sign, IsAdmin, Id } = JSON.parse(SubmittedCode);
-        const TestCasesFromDBQuery = yield model_1.default.findOne({ ID: Id });
+        const TestCasesFromDBQuery = yield model_1.ProblemModel.findOne({ ID: Id });
         let TestCases = [];
         if (TestCasesFromDBQuery !== null) {
             TestCases = JSON.parse(TestCasesFromDBQuery.TestCase);
         }
-        console.log(TestCases);
         const ArgumentArray = [args];
         const ArgsLen = ArgumentArray.length;
         let ArgParam = "";
@@ -195,7 +210,6 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                 : (ArgParam += `args${i + 1},`);
         }
         try {
-            // const script = new vm.Script(`${code} ${sign}${paramsstr}`);
             const Result = [];
             for (let i = 0; i < TestCases.length; i++) {
                 let context = "";
@@ -228,7 +242,6 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                 const script = `${code} ${log}`;
                 const result = yield GetRapidApiResponse(script);
                 const ResultByStatusCode = GetResultbyStatusCode(result);
-                console.log(ResultByStatusCode);
                 if (ResultByStatusCode.error === null) {
                     Result.push(ResultByStatusCode.output);
                 }
@@ -236,23 +249,30 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                     /// display Error to the User or Admin
                 }
             }
-            const Problem = yield model_1.default.findOne({ ID: Id });
+            const Problem = yield model_1.ProblemModel.findOne({ ID: Id });
+            // console.log("Problem"+" "+Problem)
             if (Problem !== null) {
                 const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id, TestCases);
+                console.log(Virdict);
                 if (Virdict.virdict === true) {
-                    console.log("Accepted");
+                    yield exports.ResultClinet.lPush("Result", JSON.stringify({ message: "Accepted", ID: Id }));
                 }
                 else {
-                    console.log("Failed On TestCase", Virdict === null || Virdict === void 0 ? void 0 : Virdict.FailedCase, `expected : ${Virdict.expected} Received : ${Virdict.Received}`);
+                    // console.log(
+                    //   "Failed On TestCase",
+                    //   Virdict?.FailedCase,
+                    //   `expected : ${Virdict.expected} Received : ${Virdict.Received}`
+                    // );
+                    const resp = yield exports.ResultClinet.lPush("Result", JSON.stringify({ message: "Rejected", ID: Id }));
                 }
             }
-            // ResultMap.set(Id, Result);
         }
         catch (err) {
-            console.log(err);
+            return { message: "Rejected" };
         }
     }
 });
+exports.UseJudgeApi = UseJudgeApi;
 const Verify = (Array1, Array2, Id, TestCase) => {
     for (let i = 0; i < Array1.length; i++) {
         if (Array1[i] !== Array2[i])
@@ -268,12 +288,12 @@ const Verify = (Array1, Array2, Id, TestCase) => {
 };
 const StartWorker = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        yield client.connect();
+        yield exports.client.connect();
+        yield exports.ResultClinet.connect();
         console.log("Worker connected to Redis.");
         while (true) {
-            const SubmittedCode = yield client.brPop("Submission", 0);
-            // ProcessSubmission(SubmittedCode?.element);
-            UseJudgeApi(SubmittedCode === null || SubmittedCode === void 0 ? void 0 : SubmittedCode.element);
+            const SubmittedCode = yield exports.client.brPop("Submissions", 0);
+            (0, exports.UseJudgeApi)(SubmittedCode === null || SubmittedCode === void 0 ? void 0 : SubmittedCode.element);
         }
     }
     catch (err) {
