@@ -8,12 +8,12 @@ import {IResult} from '../model/IResult'
 import  Jwt  from "jsonwebtoken";
 
 export const client = createClient(
-//   {
-//   socket:{
-//     host : 'redis',
-//     port : 6379
-//   }
-// }
+  {
+  socket:{
+    host : 'redis',
+    port : 6379
+  }
+}
 );
 
 const ResultMap = new Map();
