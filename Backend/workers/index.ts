@@ -326,7 +326,7 @@ const Verify = (Array1: any, Array2: any, Id: number,TestCase:any) => {  //// Ve
  
 }
 
-return {Virdict : true}
+return {virdict : true}
 
 };
 const StartWorker = async () => {   //// Pops the Submission from the Queue and Starts the Process
