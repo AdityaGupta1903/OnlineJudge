@@ -54,27 +54,33 @@ const GetRapidApiResponse = async (script: string) => {
     console.log(authToken);
     if (authToken) {
       // Making the second request to get the result
-      const resultOptions = {
-        method: "GET",
-        url: `https://judge0-ce.p.rapidapi.com/submissions/${authToken}`,
-        params: { fields: "*" },
-        headers: {
-          "X-RapidAPI-Key":
-            "dd6755071cmsh62bb48f4db2347ep10a9c1jsn74f1922a4902",
-          "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com",
-        },
-      };
-
-      const resultResponse = await axios.request(resultOptions);
-      const result = resultResponse.data;
-      if (Promise.resolve(result) === result) {
-          console.log("First Block")
-          console.log(result);
-      } else {
-        console.log("Second Block")
-        console.log(result);
-        return result;
-      }
+      setTimeout(()=>{
+        async function process(){
+          const resultOptions = {
+            method: "GET",
+            url: `https://judge0-ce.p.rapidapi.com/submissions/${authToken}`,
+            params: { fields: "*" },
+            headers: {
+              "X-RapidAPI-Key":
+                "dd6755071cmsh62bb48f4db2347ep10a9c1jsn74f1922a4902",
+              "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com",
+            },
+          };
+    
+          const resultResponse = await axios.request(resultOptions);
+          const result = resultResponse.data;
+          if (Promise.resolve(result) === result) {
+              console.log("First Block")
+              console.log(result);
+          } else {
+            console.log("Second Block")
+            console.log(result);
+            return result;
+          }
+        }
+        process();
+      },3000)
+      
     } else {
       console.log("Auth Token not found")
       throw new Error("Auth token not found");
