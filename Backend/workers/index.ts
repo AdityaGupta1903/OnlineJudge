@@ -51,7 +51,7 @@ const GetRapidApiResponse = async (script: string) => {
 
     const response = await axios.request(options);
     const authToken = response?.data?.token;
-
+    console.log(authToken);
     if (authToken) {
       // Making the second request to get the result
       const resultOptions = {
@@ -68,10 +68,14 @@ const GetRapidApiResponse = async (script: string) => {
       const resultResponse = await axios.request(resultOptions);
       const result = resultResponse.data;
       if (Promise.resolve(result) === result) {
+          console.log("First Block")
+          console.log(result);
       } else {
+        console.log("Second Block")
         return result;
       }
     } else {
+      console.log("Auth Token not found")
       throw new Error("Auth token not found");
     }
   } catch (error) {
@@ -335,7 +339,6 @@ const StartWorker = async () => {   //// Pops the Submission from the Queue and 
     console.log("Worker connected to Redis.");
     while (true) {
       const SubmittedCode = await client.brPop("Submissions", 0); 
-      console.log(SubmittedCode);
       UseJudgeApi(SubmittedCode?.element);
     }
   } catch (err) {
