@@ -72,6 +72,7 @@ const GetRapidApiResponse = async (script: string) => {
           console.log(result);
       } else {
         console.log("Second Block")
+        console.log(result);
         return result;
       }
     } else {
