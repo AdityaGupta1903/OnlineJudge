@@ -53,7 +53,8 @@ const GetRapidApiResponse = async (script: string) => {
     const authToken = response?.data?.token;
     console.log(authToken);
     if (authToken) {
-      // Making the second request to get the result
+     
+     const delay = new Promise((resolve,reject)=>{    /// delay for 3 seconds to process the remote machine
       setTimeout(()=>{
         async function process(){
           const resultOptions = {
@@ -75,11 +76,14 @@ const GetRapidApiResponse = async (script: string) => {
           } else {
             console.log("Second Block")
             console.log(result);
-            return result;
+            resolve(result);
           }
         }
         process();
       },3000)
+     })
+     console.log(await delay);
+     return await delay;
       
     } else {
       console.log("Auth Token not found")
