@@ -72,7 +72,7 @@ app.post("/SubmitProblem",middleware, async (req, res) => {
   const header = req.headers['authorization'];
   const token = header.split(" ")[1];
   try {
-   
+   console.log({ args, code, sign, IsAdmin, Id});
     await client.lPush("Submissions", JSON.stringify({ args, code, sign, IsAdmin, Id,token}));
     res.send("Problem submitted successfully");
   } catch (err) {

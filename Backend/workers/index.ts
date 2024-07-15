@@ -335,6 +335,7 @@ const StartWorker = async () => {   //// Pops the Submission from the Queue and 
     console.log("Worker connected to Redis.");
     while (true) {
       const SubmittedCode = await client.brPop("Submissions", 0); 
+      console.log(SubmittedCode);
       UseJudgeApi(SubmittedCode?.element);
     }
   } catch (err) {
