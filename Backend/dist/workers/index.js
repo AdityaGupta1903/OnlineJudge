@@ -19,14 +19,13 @@ const axios_1 = __importDefault(require("axios"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const model_1 = __importDefault(require("../db/model"));
 const userModel_1 = __importDefault(require("../db/userModel"));
-exports.client = (0, redis_1.createClient)(
-//   {
-//   socket:{
-//     host : 'redis',
-//     port : 6379
-//   }
-// }
-);
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+exports.client = (0, redis_1.createClient)({
+    socket: {
+        host: 'redis',
+        port: 6379
+    }
+});
 const ResultMap = new Map();
 const TestCaseMap = new Map();
 mongoose_1.default
@@ -58,26 +57,42 @@ const GetRapidApiResponse = (script) => __awaiter(void 0, void 0, void 0, functi
         // Making the first request to get the token
         const response = yield axios_1.default.request(options);
         const authToken = (_a = response === null || response === void 0 ? void 0 : response.data) === null || _a === void 0 ? void 0 : _a.token;
+        console.log(authToken);
         if (authToken) {
-            // Making the second request to get the result
-            const resultOptions = {
-                method: "GET",
-                url: `https://judge0-ce.p.rapidapi.com/submissions/${authToken}`,
-                params: { fields: "*" },
-                headers: {
-                    "X-RapidAPI-Key": "dd6755071cmsh62bb48f4db2347ep10a9c1jsn74f1922a4902",
-                    "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com",
-                },
-            };
-            const resultResponse = yield axios_1.default.request(resultOptions);
-            const result = resultResponse.data;
-            if (Promise.resolve(result) === result) {
-            }
-            else {
-                return result;
-            }
+            const delay = new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    function process() {
+                        return __awaiter(this, void 0, void 0, function* () {
+                            const resultOptions = {
+                                method: "GET",
+                                url: `https://judge0-ce.p.rapidapi.com/submissions/${authToken}`,
+                                params: { fields: "*" },
+                                headers: {
+                                    "X-RapidAPI-Key": "dd6755071cmsh62bb48f4db2347ep10a9c1jsn74f1922a4902",
+                                    "X-RapidAPI-Host": "judge0-ce.p.rapidapi.com",
+                                },
+                            };
+                            const resultResponse = yield axios_1.default.request(resultOptions);
+                            const result = resultResponse.data;
+                            if (Promise.resolve(result) === result) {
+                                console.log("First Block");
+                                console.log(result);
+                            }
+                            else {
+                                console.log("Second Block");
+                                console.log(result);
+                                resolve(result);
+                            }
+                        });
+                    }
+                    process();
+                }, 3000);
+            });
+            console.log(yield delay);
+            return yield delay;
         }
         else {
+            console.log("Auth Token not found");
             throw new Error("Auth token not found");
         }
     }
@@ -88,26 +103,35 @@ const GetRapidApiResponse = (script) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 const PushResultToDatabase = (ResultObject) => __awaiter(void 0, void 0, void 0, function* () {
+    const token = ResultObject.token;
     try {
-        let UserProblemArray = yield userModel_1.default.findOne({ Id: 1 });
-        console.log(UserProblemArray);
-        if (UserProblemArray) {
-            let ProblemArray = UserProblemArray.ProblemVirdict.some(item => item.ProblemId === (ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID)); /// Find the Users Problem Array 
-            if (ProblemArray) {
-                yield userModel_1.default.findOneAndUpdate({ Id: 1, 'ProblemVirdict.ProblemId': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID }, { $set: { 'ProblemVirdict.$.Virdict': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } /// Update the Problems Virdict of the User
-                );
+        const UserDetails = jsonwebtoken_1.default.verify(token, "S3CRET");
+        if (typeof (UserDetails) !== 'string') {
+            const Username = UserDetails.username;
+            const Password = UserDetails.password;
+            let UserProblemArray = yield userModel_1.default.findOne({ username: Username });
+            if (UserProblemArray) {
+                let ProblemArray = UserProblemArray.ProblemVirdict.some(item => item.ProblemId === (ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID)); /// Find the Users Problem Array 
+                if (ProblemArray) {
+                    yield userModel_1.default.findOneAndUpdate({ username: Username, password: Password, 'ProblemVirdict.ProblemId': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID }, { $set: { 'ProblemVirdict.$.Virdict': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } /// Update the Problems Virdict of the User
+                    );
+                }
+                else {
+                    yield userModel_1.default.findOneAndUpdate({ username: Username, password: Password }, { $push: { ProblemVirdict: { ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } } /// The User is solving this Problem first time so push this problem
+                    );
+                }
             }
             else {
-                yield userModel_1.default.findOneAndUpdate({ Id: 1 }, { $push: { ProblemVirdict: { ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } } /// The User is solving this Problem first time so push this problem
-                );
+                let problem = new userModel_1.default({
+                    username: Username,
+                    password: Password,
+                    ProblemVirdict: [{ ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message }] /// The User has just solved his first problem to the Platform
+                });
+                problem.save();
             }
         }
         else {
-            let problem = new userModel_1.default({
-                Id: 1,
-                ProblemVirdict: [{ ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message }] /// The User has just solved his first problem to the Platform
-            });
-            problem.save();
+            console.log("ERROR FETCHING TOKEN");
         }
     }
     catch (err) {
@@ -178,7 +202,6 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                 const script = `${code} ${log}`;
                 const result = yield GetRapidApiResponse(script);
                 const ResultByStatusCode = GetResultbyStatusCode(result);
-                console.log(ResultByStatusCode);
                 if (ResultByStatusCode.error === null) {
                     Result.push(ResultByStatusCode.output);
                 }
@@ -215,7 +238,7 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
         }
     }
     else {
-        const { args, code, sign, IsAdmin, Id } = JSON.parse(SubmittedCode);
+        const { args, code, sign, IsAdmin, Id, token } = JSON.parse(SubmittedCode);
         const TestCasesFromDBQuery = yield model_1.default.findOne({ ID: Id });
         let TestCases = [];
         if (TestCasesFromDBQuery !== null) {
@@ -268,22 +291,29 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                 else {
                     /// display Error to the User or Admin And Handle the case of Submission limit Reached for the day
                     //// For now Assume the 
+                    console.log(ResultByStatusCode.error);
+                    Result.push(-1);
                 }
             }
             const Problem = yield model_1.default.findOne({ ID: Id });
             // console.log("Problem"+" "+Problem)
             if (Problem !== null) {
                 const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id, TestCases);
+                console.log(Virdict);
                 if (Virdict.virdict === true) {
-                    PushResultToDatabase({ message: "Accepted", ID: Id }); /// Show the Accepted Virdict to the User 
+                    PushResultToDatabase({ message: "Accepted", ID: Id, token: token }); /// Show the Accepted Virdict to the User 
                 }
-                else {
+                else if (Virdict.virdict === false) {
                     // console.log(
                     //   "Failed On TestCase",
                     //   Virdict?.FailedCase,
                     //   `expected : ${Virdict.expected} Received : ${Virdict.Received}`
                     // );
-                    PushResultToDatabase({ message: "Rejected", ID: Id }); /// Also show the failed test to the User
+                    PushResultToDatabase({ message: "Wrong Answer", ID: Id, token: token }); /// Also show the failed test to the User
+                }
+                else {
+                    console.log("Reached");
+                    PushResultToDatabase({ message: "Submission Limit Exceed for the Day ", ID: Id, token: token });
                 }
             }
         }
@@ -295,7 +325,11 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
 exports.UseJudgeApi = UseJudgeApi;
 const Verify = (Array1, Array2, Id, TestCase) => {
     for (let i = 0; i < Array1.length; i++) {
-        if (Array1[i] !== Array2[i])
+        console.log(Array1[i] + " " + Array2[i]);
+        if (Array1[i] === -1) {
+            return { virdit: "Submission Limit Reached" };
+        }
+        else if (Array1[i] !== Array2[i])
             return {
                 virdict: false,
                 FailedCase: i + 1,

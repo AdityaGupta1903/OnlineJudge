@@ -16,8 +16,12 @@ const ProblemStatusSchema = new mongoose_1.default.Schema({
     }
 });
 const UserSchema = new mongoose_1.default.Schema({
-    Id: {
-        type: Number,
+    username: {
+        type: String,
+        required: true
+    },
+    password: {
+        type: String,
         required: true
     },
     ProblemVirdict: {

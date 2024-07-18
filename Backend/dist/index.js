@@ -18,19 +18,19 @@ const cors_1 = __importDefault(require("cors"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const model_1 = __importDefault(require("./db/model"));
 const userModel_1 = __importDefault(require("./db/userModel"));
+const middleware_1 = require("./middleware/middleware");
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Initialize Express app
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
 // Initialize Redis clients
-const client = (0, redis_1.createClient)(
-//   {
-//   socket:{
-//     host : 'redis', /// for the Container of redis
-//     port : 6379
-//   }
-// }
-);
+const client = (0, redis_1.createClient)({
+    socket: {
+        host: 'redis',
+        port: 6379
+    }
+});
 // Connect to Redis clients
 client.connect().catch(err => {
     console.error("Connection failed with error", err);
@@ -44,7 +44,7 @@ mongoose_1.default.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6w
     console.log("Error in connecting to DB", err);
 });
 // Define routes
-app.get("/Run", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get("/Run", middleware_1.middleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { Id, code, sign, args } = req.body;
     const IsAdmin = false;
     try {
@@ -56,7 +56,7 @@ app.get("/Run", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         res.status(500).send("Error storing problem");
     }
 }));
-app.post("/CreateProblem", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post("/CreateProblem", middleware_1.middleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { args, code, Signature: sign, id: Id, Description } = req.body;
     const IsAdmin = true;
     try {
@@ -68,12 +68,13 @@ app.post("/CreateProblem", (req, res) => __awaiter(void 0, void 0, void 0, funct
         res.status(500).send("Error storing problem");
     }
 }));
-app.post("/SubmitProblem", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post("/SubmitProblem", middleware_1.middleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id: Id, args, code, Signature: sign } = req.body;
     const IsAdmin = false;
+    const header = req.headers['authorization'];
+    const token = header.split(" ")[1];
     try {
-        console.log(JSON.stringify({ args, code, sign, IsAdmin, Id }));
-        yield client.lPush("Submissions", JSON.stringify({ args, code, sign, IsAdmin, Id }));
+        yield client.lPush("Submissions", JSON.stringify({ args, code, sign, IsAdmin, Id, token }));
         res.send("Problem submitted successfully");
     }
     catch (err) {
@@ -82,7 +83,7 @@ app.post("/SubmitProblem", (req, res) => __awaiter(void 0, void 0, void 0, funct
     }
 }));
 // Additional routes
-app.get("/GetAllProblems", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get("/GetAllProblems", middleware_1.middleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const AllProblems = yield model_1.default.find({});
         res.json(AllProblems);
@@ -122,18 +123,77 @@ app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, funct
         res.status(500).send("Error loading the data");
     }
 }));
-app.get('/GetAllProblemStatus', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get('/GetAllProblemStatus', middleware_1.middleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        let UserProblemArray = yield userModel_1.default.findOne({ Id: 1 }); /// change Id to the User Id 
-        if (UserProblemArray) {
-            res.status(200).send(JSON.stringify(UserProblemArray.ProblemVirdict));
+        const header = req.headers['authorization'];
+        const token = header.split(" ")[1];
+        const UserDetails = jsonwebtoken_1.default.verify(token, "S3CRET");
+        if (typeof (UserDetails) !== 'string') {
+            const Username = UserDetails.username;
+            let UserProblemArray = yield userModel_1.default.findOne({ username: Username }); /// change Id to the User Id 
+            if (UserProblemArray) {
+                res.status(200).send(JSON.stringify(UserProblemArray.ProblemVirdict));
+            }
+            else {
+                res.status(200).send(JSON.stringify([]));
+            }
         }
         else {
-            res.status(200).send(JSON.stringify([]));
+            res.send(400).send({ message: "Error Fetching the data" });
         }
     }
     catch (err) {
         console.log(err);
+    }
+}));
+app.post('/Signup', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { username, password } = req.body;
+        let chechIfUserAlreayExists = yield userModel_1.default.findOne({ username: username });
+        if (chechIfUserAlreayExists) {
+            res.status(200).send({ message: 'User Already There' });
+        }
+        else {
+            const token = jsonwebtoken_1.default.sign({ username: username, password: password }, 'S3CRET');
+            if (token) {
+                let User = new userModel_1.default({
+                    username: username,
+                    password: password,
+                    ProblemVirdict: []
+                });
+                User.save();
+                res.status(200).send({ message: 'SignUp Successfull', token: token });
+            }
+            else {
+                res.send(200).send({ message: 'Some Error Has Occured', token: null });
+            }
+        }
+    }
+    catch (err) {
+        console.log("RESET Password");
+    }
+}));
+app.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { username, password } = req.body;
+        let chechIfUserAlreayExists = yield userModel_1.default.findOne({ username: username, password: password });
+        console.log(chechIfUserAlreayExists);
+        if (chechIfUserAlreayExists) {
+            const token = jsonwebtoken_1.default.sign({ username: username, password: password }, 'S3CRET');
+            if (token) {
+                // localStorage.setItem('token',token);
+                res.status(200).send({ message: 'login Successfull', token: token });
+            }
+            else {
+                res.status(200).send({ message: 'Some Error Has Occured', token: null });
+            }
+        }
+        else {
+            res.status(200).send({ message: 'Invalid Credentials', token: null });
+        }
+    }
+    catch (err) {
+        console.log("RESET Login");
     }
 }));
 // Start the server
