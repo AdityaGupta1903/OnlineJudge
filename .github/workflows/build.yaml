@@ -43,7 +43,6 @@ jobs:
           username: ${{ env.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
-            sudo docker system prune
             sudo docker pull adityagupta1903/onlinejudge:latest
             sudo docker pull redis
             sudo docker stop onlinejudge || true
