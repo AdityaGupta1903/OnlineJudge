@@ -6,6 +6,7 @@ import ProblemModel from "./db/model";
 import UserModel from './db/userModel'
 import { middleware } from "./middleware/middleware";
 import Jwt from 'jsonwebtoken'
+import prisma from "./db/PrismaClient";
 
 
 // Initialize Express app
@@ -15,12 +16,12 @@ app.use(cors());
 
 // Initialize Redis clients
 const client = createClient(
-    {
-    socket:{
-      host : 'redis', /// for the Container of redis
-      port : 6379
-    }
-  }
+  //   {
+  //   socket:{
+  //     host : 'redis', /// for the Container of redis
+  //     port : 6379
+  //   }
+  // }
 );
 
 // Connect to Redis clients
@@ -30,13 +31,7 @@ client.connect().catch(err => {
 
 
 // Connect to MongoDB
-mongoose.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/")
-  .then(() => {
-    console.log("DB Connected");
-  })
-  .catch(err => {
-    console.log("Error in connecting to DB", err);
-  });
+
 
 // Define routes
 app.get("/Run",middleware, async (req, res) => {
@@ -52,12 +47,12 @@ app.get("/Run",middleware, async (req, res) => {
   }
 });
 
-app.post("/CreateProblem",middleware, async (req, res) => {
+app.post("/CreateProblem", async (req, res) => {
   const { args, code, Signature: sign, id: Id, Description } = req.body;
   const IsAdmin = true;
 
   try {
-    await client.lPush("Submission", JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
+    await client.lPush("Submissions", JSON.stringify({ args, code, sign, IsAdmin, Id, Description }));
 
     res.send("Problem received and stored");
   } catch (err) {
@@ -84,7 +79,7 @@ app.post("/SubmitProblem",middleware, async (req, res) => {
 // Additional routes
 app.get("/GetAllProblems",middleware, async (req, res) => {
   try {
-    const AllProblems = await ProblemModel.find({});
+    const AllProblems = await prisma.problem.findMany({})
     res.json(AllProblems);
   } catch (err) {
     res.status(500).send("Error fetching data");
@@ -94,7 +89,11 @@ app.get("/GetAllProblems",middleware, async (req, res) => {
 app.get("/GetProblem/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const Problem = await ProblemModel.findOne({ ID: id });
+    const Problem = await prisma.problem.findUnique({
+      where :{
+        pId : Number(id)
+      }
+    });
     if (Problem !== null) {
       const SampleInput = JSON.parse(Problem.TestCase)[0];
       const SampleOutput = JSON.parse(Problem.TestCaseResults)[0];
@@ -104,7 +103,7 @@ app.get("/GetProblem/:id", async (req, res) => {
         args: Problem.args,
         SampleInput: SampleInput,
         SampleOutput: SampleOutput,
-        ID: Problem.ID,
+        ID: Problem.pId,
       });
     } else {
       res.json({
@@ -128,12 +127,22 @@ app.get('/GetAllProblemStatus',middleware,async(req,res)=>{
     const UserDetails = Jwt.verify(token,"S3CRET");
     if(typeof(UserDetails)!=='string'){
       const Username = UserDetails.username;
-      let UserProblemArray = await UserModel.findOne({ username: Username }); /// change Id to the User Id 
-      if(UserProblemArray){
-        res.status(200).send(JSON.stringify(UserProblemArray.ProblemVirdict));
-      }
-      else{
-         res.status(200).send(JSON.stringify([]));
+      if(Username){
+        let UserProblemArray = await prisma.user.findUnique({
+          where : {
+            username : Username
+          },
+          include:{
+            Submission : true
+          }
+          
+        }) /// change Id to the User Id 
+        if(UserProblemArray){
+          res.status(200).send(JSON.stringify(UserProblemArray.Submission));
+        }
+        else{
+           res.status(200).send(JSON.stringify([]));
+        }
       }
     }
     else{
@@ -151,20 +160,26 @@ app.post('/Signup',async(req,res)=>{
   try{
     const {username,password} = req.body;
   
-   let chechIfUserAlreayExists = await UserModel.findOne({username:username});
+    let chechIfUserAlreayExists = await prisma.user.findUnique({
+      where:{
+        username : username
+      }
+    });
+  
    if(chechIfUserAlreayExists){
     res.status(200).send({message:'User Already There'})
    }
    else{
-     const token = Jwt.sign({username : username,password:password},'S3CRET');
-
-     if(token){
-       let User = new UserModel({
+     
+     let CreateUser = await prisma.user.create({
+      data :{
         username : username,
         password : password,
-        ProblemVirdict : []
-       })
-       User.save();   
+      }
+    })
+
+     if(CreateUser){
+      const token = Jwt.sign({username : username,password:password,id:CreateUser.id},'S3CRET');
        res.status(200).send({message:'SignUp Successfull',token : token})
      }
      else{
@@ -180,10 +195,16 @@ app.post('/Signup',async(req,res)=>{
 app.post('/login',async(req,res)=>{
   try{
     const {username,password} = req.body;
-    let chechIfUserAlreayExists = await UserModel.findOne({username:username,password : password});
+    let chechIfUserAlreayExists = await prisma.user.findUnique({
+      where : {
+        username : username,
+        password : password
+      }
+    })
+
     console.log(chechIfUserAlreayExists)
     if(chechIfUserAlreayExists){
-      const token = Jwt.sign({username : username,password:password},'S3CRET');
+      const token = Jwt.sign({username : username,password:password,id:chechIfUserAlreayExists.id},'S3CRET');
       if(token){
         // localStorage.setItem('token',token);
         res.status(200).send({message:'login Successfull',token:token})

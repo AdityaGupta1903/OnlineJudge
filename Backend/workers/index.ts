@@ -1,33 +1,21 @@
 import { createClient } from "redis";
 import { Tests } from "./Tests/function";
 import axios from "axios";
-import mongoose from "mongoose";
-import ProblemModel from "../db/model";
-import UserModel from '../db/userModel'
 import {IResult} from '../model/IResult'
 import  Jwt  from "jsonwebtoken";
+import prisma from './../db/PrismaClient'
 
 export const client = createClient(
-  {
-  socket:{
-    host : 'redis',
-    port : 6379
-  }
-}
+//   {
+//   socket:{
+//     host : 'redis',
+//     port : 6379
+//   }
+// }
 );
 
 const ResultMap = new Map();
 const TestCaseMap = new Map();
-mongoose
-  .connect(
-    "mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/"
-  )
-  .then((resp) => {
-    console.log("DB Connected");
-  })
-  .catch((err) => {
-    console.log(err);
-  });
   
 const GetRapidApiResponse = async (script: string) => {
   try {
@@ -97,39 +85,34 @@ const GetRapidApiResponse = async (script: string) => {
 };
 const PushResultToDatabase = async (ResultObject:IResult)=>{
    const token = ResultObject.token;
-   
     try {
         const UserDetails = Jwt.verify(token,"S3CRET");
-        
         if(typeof(UserDetails)!=='string'){
-          const Username = UserDetails.username;
-          const Password = UserDetails.password;
-          
-          let UserProblemArray = await UserModel.findOne({ username: Username });
-
-          if (UserProblemArray) {
-            let ProblemArray = UserProblemArray.ProblemVirdict.some(item => item.ProblemId === ResultObject?.ID); /// Find the Users Problem Array 
-            if (ProblemArray) {
-              await UserModel.findOneAndUpdate(
-                { username: Username,password :Password, 'ProblemVirdict.ProblemId': ResultObject?.ID },
-                { $set: { 'ProblemVirdict.$.Virdict': ResultObject?.message } }    /// Update the Problems Virdict of the User
-              );
+          const UserId = UserDetails.id
+          let IsPreSubmitted = await prisma.submission.findFirst({
+            where :{
+              UserId : UserId,  /// change to the Actual UserId 
+              problemId : ResultObject.ID /// change to the Actual ProblemId
             }
-            else{
-              await UserModel.findOneAndUpdate(
-                { username: Username,password : Password },
-                { $push: { ProblemVirdict: { ProblemId: ResultObject?.ID, Virdict: ResultObject?.message } } } /// The User is solving this Problem first time so push this problem
-              );
-            }
-            
+          })
+          if (IsPreSubmitted !== null) {
+            await prisma.submission.update({
+              where : {
+                subId : IsPreSubmitted.subId
+              },
+              data:{
+                status : ResultObject?.message
+              }
+            })
           }
           else {
-            let problem = new UserModel({
-              username: Username,
-              password : Password,
-              ProblemVirdict: [{ ProblemId: ResultObject?.ID, Virdict: ResultObject?.message }]      /// The User has just solved his first problem to the Platform
-            })
-            problem.save();
+             await prisma.submission.create({
+                data : {
+                  UserId : UserId,
+                  problemId : ResultObject.ID,
+                  status : ResultObject?.message
+                }
+             })
           }
         }
         else{
@@ -214,20 +197,22 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
       if (IsError === false) {
         ResultMap.set(Id, Result);
 
-        if ((await ProblemModel.findOne({ ID: Id })) === null) {
-          let Problem = new ProblemModel({
-            ID: Id,
-            args: args,
-            TestCase: JSON.stringify(TestCases),
-            sign: sign,
-            code: code,
-            Description : Description,
-            TestCaseResults : JSON.stringify(Result)
-          });
-          Problem.save();
+        if ((await prisma.problem.findUnique({where : {pId : Number(Id)}}) === null)) {
+          
+          let newProblem = await prisma.problem.create({
+             data : {
+              pId : Number(Id),
+              args : args,
+              TestCase : JSON.stringify(TestCases),
+              sign : sign,
+              code : code,
+              Description : Description,
+              TestCaseResults : JSON.stringify(Result)
+             }
+          })
         } else {
           console.log("Problem Already Exists");
-          console.log(await ProblemModel.findOne({ ID: Id }));
+          console.log(await prisma.problem.findUnique({where : {pId : Number(Id)}}));
         }
       } else {
         console.log("There is Some Error in Your Code");
@@ -238,7 +223,7 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
   } else {
     const { args, code, sign, IsAdmin, Id,token } = JSON.parse(SubmittedCode);
  
-    const TestCasesFromDBQuery = await ProblemModel.findOne({ ID: Id });
+    const TestCasesFromDBQuery = await prisma.problem.findUnique({where : {pId : Number(Id)}});
     let TestCases = [];
     if (TestCasesFromDBQuery !== null) {
       TestCases = JSON.parse(TestCasesFromDBQuery.TestCase);
@@ -297,7 +282,11 @@ export const UseJudgeApi = async (SubmittedCode: any) => {
           Result.push(-1);
         }
       }
-      const Problem = await ProblemModel.findOne({ID:Id});
+      const Problem = await prisma.problem.findUnique({
+        where :{
+          pId : Number(Id)
+        }
+      })
       // console.log("Problem"+" "+Problem)
       if(Problem!==null){
         const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id,TestCases);
@@ -350,6 +339,7 @@ const StartWorker = async () => {   //// Pops the Submission from the Queue and 
     console.log("Worker connected to Redis.");
     while (true) {
       const SubmittedCode = await client.brPop("Submissions", 0); 
+      console.log(SubmittedCode);
       UseJudgeApi(SubmittedCode?.element);
     }
   } catch (err) {

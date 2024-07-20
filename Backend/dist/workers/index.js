@@ -16,26 +16,18 @@ exports.UseJudgeApi = exports.client = void 0;
 const redis_1 = require("redis");
 const function_1 = require("./Tests/function");
 const axios_1 = __importDefault(require("axios"));
-const mongoose_1 = __importDefault(require("mongoose"));
-const model_1 = __importDefault(require("../db/model"));
-const userModel_1 = __importDefault(require("../db/userModel"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-exports.client = (0, redis_1.createClient)({
-    socket: {
-        host: 'redis',
-        port: 6379
-    }
-});
+const PrismaClient_1 = __importDefault(require("./../db/PrismaClient"));
+exports.client = (0, redis_1.createClient)(
+//   {
+//   socket:{
+//     host : 'redis',
+//     port : 6379
+//   }
+// }
+);
 const ResultMap = new Map();
 const TestCaseMap = new Map();
-mongoose_1.default
-    .connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/")
-    .then((resp) => {
-    console.log("DB Connected");
-})
-    .catch((err) => {
-    console.log(err);
-});
 const GetRapidApiResponse = (script) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
@@ -107,27 +99,31 @@ const PushResultToDatabase = (ResultObject) => __awaiter(void 0, void 0, void 0,
     try {
         const UserDetails = jsonwebtoken_1.default.verify(token, "S3CRET");
         if (typeof (UserDetails) !== 'string') {
-            const Username = UserDetails.username;
-            const Password = UserDetails.password;
-            let UserProblemArray = yield userModel_1.default.findOne({ username: Username });
-            if (UserProblemArray) {
-                let ProblemArray = UserProblemArray.ProblemVirdict.some(item => item.ProblemId === (ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID)); /// Find the Users Problem Array 
-                if (ProblemArray) {
-                    yield userModel_1.default.findOneAndUpdate({ username: Username, password: Password, 'ProblemVirdict.ProblemId': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID }, { $set: { 'ProblemVirdict.$.Virdict': ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } /// Update the Problems Virdict of the User
-                    );
+            const UserId = UserDetails.id;
+            let IsPreSubmitted = yield PrismaClient_1.default.submission.findFirst({
+                where: {
+                    UserId: UserId,
+                    problemId: ResultObject.ID /// change to the Actual ProblemId
                 }
-                else {
-                    yield userModel_1.default.findOneAndUpdate({ username: Username, password: Password }, { $push: { ProblemVirdict: { ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message } } } /// The User is solving this Problem first time so push this problem
-                    );
-                }
+            });
+            if (IsPreSubmitted !== null) {
+                yield PrismaClient_1.default.submission.update({
+                    where: {
+                        subId: IsPreSubmitted.subId
+                    },
+                    data: {
+                        status: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message
+                    }
+                });
             }
             else {
-                let problem = new userModel_1.default({
-                    username: Username,
-                    password: Password,
-                    ProblemVirdict: [{ ProblemId: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.ID, Virdict: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message }] /// The User has just solved his first problem to the Platform
+                yield PrismaClient_1.default.submission.create({
+                    data: {
+                        UserId: UserId,
+                        problemId: ResultObject.ID,
+                        status: ResultObject === null || ResultObject === void 0 ? void 0 : ResultObject.message
+                    }
                 });
-                problem.save();
             }
         }
         else {
@@ -212,21 +208,22 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
             }
             if (IsError === false) {
                 ResultMap.set(Id, Result);
-                if ((yield model_1.default.findOne({ ID: Id })) === null) {
-                    let Problem = new model_1.default({
-                        ID: Id,
-                        args: args,
-                        TestCase: JSON.stringify(TestCases),
-                        sign: sign,
-                        code: code,
-                        Description: Description,
-                        TestCaseResults: JSON.stringify(Result)
+                if (((yield PrismaClient_1.default.problem.findUnique({ where: { pId: Id } })) === null)) {
+                    let newProblem = PrismaClient_1.default.problem.create({
+                        data: {
+                            pId: Id,
+                            args: args,
+                            TestCase: JSON.stringify(TestCases),
+                            sign: sign,
+                            code: code,
+                            Description: Description,
+                            TestCaseResults: JSON.stringify(Result)
+                        }
                     });
-                    Problem.save();
                 }
                 else {
                     console.log("Problem Already Exists");
-                    console.log(yield model_1.default.findOne({ ID: Id }));
+                    console.log(yield PrismaClient_1.default.problem.findUnique({ where: { pId: Id } }));
                 }
             }
             else {
@@ -239,7 +236,7 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
     }
     else {
         const { args, code, sign, IsAdmin, Id, token } = JSON.parse(SubmittedCode);
-        const TestCasesFromDBQuery = yield model_1.default.findOne({ ID: Id });
+        const TestCasesFromDBQuery = yield PrismaClient_1.default.problem.findUnique({ where: { pId: Id } });
         let TestCases = [];
         if (TestCasesFromDBQuery !== null) {
             TestCases = JSON.parse(TestCasesFromDBQuery.TestCase);
@@ -295,7 +292,11 @@ const UseJudgeApi = (SubmittedCode) => __awaiter(void 0, void 0, void 0, functio
                     Result.push(-1);
                 }
             }
-            const Problem = yield model_1.default.findOne({ ID: Id });
+            const Problem = yield PrismaClient_1.default.problem.findUnique({
+                where: {
+                    pId: Id
+                }
+            });
             // console.log("Problem"+" "+Problem)
             if (Problem !== null) {
                 const Virdict = Verify(Result, JSON.parse(Problem.TestCaseResults), Id, TestCases);
