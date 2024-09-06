@@ -15,34 +15,27 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const redis_1 = require("redis");
 const cors_1 = __importDefault(require("cors"));
-const mongoose_1 = __importDefault(require("mongoose"));
-const model_1 = __importDefault(require("./db/model"));
-const userModel_1 = __importDefault(require("./db/userModel"));
 const middleware_1 = require("./middleware/middleware");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const PrismaClient_1 = __importDefault(require("./db/PrismaClient"));
 // Initialize Express app
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)());
 // Initialize Redis clients
-const client = (0, redis_1.createClient)({
-    socket: {
-        host: 'redis',
-        port: 6379
-    }
-});
+const client = (0, redis_1.createClient)(
+//   {
+//   socket:{
+//     host : 'redis', /// for the Container of redis
+//     port : 6379
+//   }
+// }
+);
 // Connect to Redis clients
 client.connect().catch(err => {
     console.error("Connection failed with error", err);
 });
 // Connect to MongoDB
-mongoose_1.default.connect("mongodb+srv://guptaditya19:aditya1452@cluster0.fju6wwd.mongodb.net/")
-    .then(() => {
-    console.log("DB Connected");
-})
-    .catch(err => {
-    console.log("Error in connecting to DB", err);
-});
 // Define routes
 app.get("/Run", middleware_1.middleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { Id, code, sign, args } = req.body;
@@ -85,7 +78,7 @@ app.post("/SubmitProblem", middleware_1.middleware, (req, res) => __awaiter(void
 // Additional routes
 app.get("/GetAllProblems", middleware_1.middleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const AllProblems = yield model_1.default.find({});
+        const AllProblems = yield PrismaClient_1.default.problem.findMany({});
         res.json(AllProblems);
     }
     catch (err) {
@@ -95,7 +88,11 @@ app.get("/GetAllProblems", middleware_1.middleware, (req, res) => __awaiter(void
 app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const Problem = yield model_1.default.findOne({ ID: id });
+        const Problem = yield PrismaClient_1.default.problem.findUnique({
+            where: {
+                pId: Number(id)
+            }
+        });
         if (Problem !== null) {
             const SampleInput = JSON.parse(Problem.TestCase)[0];
             const SampleOutput = JSON.parse(Problem.TestCaseResults)[0];
@@ -105,7 +102,7 @@ app.get("/GetProblem/:id", (req, res) => __awaiter(void 0, void 0, void 0, funct
                 args: Problem.args,
                 SampleInput: SampleInput,
                 SampleOutput: SampleOutput,
-                ID: Problem.ID,
+                ID: Problem.pId,
             });
         }
         else {
@@ -130,9 +127,16 @@ app.get('/GetAllProblemStatus', middleware_1.middleware, (req, res) => __awaiter
         const UserDetails = jsonwebtoken_1.default.verify(token, "S3CRET");
         if (typeof (UserDetails) !== 'string') {
             const Username = UserDetails.username;
-            let UserProblemArray = yield userModel_1.default.findOne({ username: Username }); /// change Id to the User Id 
+            let UserProblemArray = yield PrismaClient_1.default.user.findUnique({
+                where: {
+                    username: Username
+                },
+                include: {
+                    Submission: true
+                }
+            }); /// change Id to the User Id 
             if (UserProblemArray) {
-                res.status(200).send(JSON.stringify(UserProblemArray.ProblemVirdict));
+                res.status(200).send(JSON.stringify(UserProblemArray.Submission));
             }
             else {
                 res.status(200).send(JSON.stringify([]));
@@ -149,19 +153,23 @@ app.get('/GetAllProblemStatus', middleware_1.middleware, (req, res) => __awaiter
 app.post('/Signup', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { username, password } = req.body;
-        let chechIfUserAlreayExists = yield userModel_1.default.findOne({ username: username });
+        let chechIfUserAlreayExists = yield PrismaClient_1.default.user.findUnique({
+            where: {
+                username: username
+            }
+        });
         if (chechIfUserAlreayExists) {
             res.status(200).send({ message: 'User Already There' });
         }
         else {
-            const token = jsonwebtoken_1.default.sign({ username: username, password: password }, 'S3CRET');
-            if (token) {
-                let User = new userModel_1.default({
+            let CreateUser = yield PrismaClient_1.default.user.create({
+                data: {
                     username: username,
                     password: password,
-                    ProblemVirdict: []
-                });
-                User.save();
+                }
+            });
+            if (CreateUser) {
+                const token = jsonwebtoken_1.default.sign({ username: username, password: password, id: CreateUser.id }, 'S3CRET');
                 res.status(200).send({ message: 'SignUp Successfull', token: token });
             }
             else {
@@ -176,10 +184,15 @@ app.post('/Signup', (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 app.post('/login', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { username, password } = req.body;
-        let chechIfUserAlreayExists = yield userModel_1.default.findOne({ username: username, password: password });
+        let chechIfUserAlreayExists = yield PrismaClient_1.default.user.findUnique({
+            where: {
+                username: username,
+                password: password
+            }
+        });
         console.log(chechIfUserAlreayExists);
         if (chechIfUserAlreayExists) {
-            const token = jsonwebtoken_1.default.sign({ username: username, password: password }, 'S3CRET');
+            const token = jsonwebtoken_1.default.sign({ username: username, password: password, id: chechIfUserAlreayExists.id }, 'S3CRET');
             if (token) {
                 // localStorage.setItem('token',token);
                 res.status(200).send({ message: 'login Successfull', token: token });
