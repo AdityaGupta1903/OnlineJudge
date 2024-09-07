@@ -5,6 +5,7 @@ WORKDIR /usr/src/app
 # Copy package.json and package-lock.json to the container
 COPY ./Backend/package*.json ./
 # Install application dependencies
+# CMD ["cd","Backend"]
 RUN npm install
 # Copy the rest of the application code
 COPY ./Backend .
