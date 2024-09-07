@@ -5,10 +5,11 @@ WORKDIR /usr/src/app
 # Copy package.json and package-lock.json to the container
 COPY ./Backend/package*.json ./
 # Install application dependencies
-# CMD ["cd","Backend"]
-RUN npm install
+
+
 # Copy the rest of the application code
 COPY ./Backend .
 # Specify the command to run your application
+RUN npm install
 
 CMD ["npm", "run","RunSolution"]
