@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "postinstall": "prisma generate",
-    "RunSolution": "concurrently \"npm run postinstall && tsc -b && cd dist && pm2 start index.js  && cd workers && pm2 start index.js && pm2 logs\" "
+    "RunSolution": "concurrently \"tsc -b && cd dist && pm2 start index.js  && cd workers && pm2 start index.js && pm2 logs\" "
   },
   "keywords": [],
   "author": "",
