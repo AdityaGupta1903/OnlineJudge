@@ -16,12 +16,12 @@ app.use(cors());
 
 // Initialize Redis clients
 const client = createClient(
-  //   {
-  //   socket:{
-  //     host : 'redis', /// for the Container of redis
-  //     port : 6379
-  //   }
-  // }
+    {
+    socket:{
+      host : 'redis', /// for the Container of redis
+      port : 6379
+    }
+  }
 );
 
 // Connect to Redis clients

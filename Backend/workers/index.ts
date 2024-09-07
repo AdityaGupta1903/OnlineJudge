@@ -6,12 +6,12 @@ import  Jwt  from "jsonwebtoken";
 import prisma from './../db/PrismaClient'
 
 export const client = createClient(
-//   {
-//   socket:{
-//     host : 'redis',
-//     port : 6379
-//   }
-// }
+  {
+  socket:{
+    host : 'redis',
+    port : 6379
+  }
+}
 );
 
 const ResultMap = new Map();
